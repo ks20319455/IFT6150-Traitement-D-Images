@@ -14,6 +14,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <float.h>
 
 #include "FonctionDemo2.h"
 
@@ -181,19 +182,19 @@ int main(int argc,char** argv)
           int angle = (int) gradient_angle[i][j];
           switch(angle) {
           case 0:
-              if(gradient_norme[i][j] < MAX(i_greater_zero ? gradient_norme[i - 1][j] : 0, i_less_length ? gradient_norme[i + 1][j] : 0))
+              if(gradient_norme[i][j] < MAX(i_greater_zero ? gradient_norme[i - 1][j]: FLT_MAX, i_less_length ? gradient_norme[i + 1][j]: FLT_MAX))
                   suppression[i][j] = 0;
               break;
           case 135:
-              if(gradient_norme[i][j] < MAX(i_greater_zero && j_greater_zero ? gradient_norme[i - 1][j - 1] : 0, i_less_length && j_less_width ? gradient_norme[i + 1][j + 1]:0))
+              if(gradient_norme[i][j] < MAX(i_greater_zero && j_greater_zero ? gradient_norme[i - 1][j - 1]: FLT_MAX, i_less_length && j_less_width ? gradient_norme[i + 1][j + 1]: FLT_MAX))
                   suppression[i][j] = 0;
               break;
           case 90:
-              if(gradient_norme[i][j] < MAX(j_greater_zero ? gradient_norme[i][j - 1]: 0, j_less_width ? gradient_norme[i][j + 1]: 0))
+              if(gradient_norme[i][j] < MAX(j_greater_zero ? gradient_norme[i][j - 1]: FLT_MAX, j_less_width ? gradient_norme[i][j + 1]: FLT_MAX))
                   suppression[i][j] = 0;
               break;
           case 45:
-              if(gradient_norme[i][j] < MAX(i_less_length && j_greater_zero? gradient_norme[i + 1][j - 1]: 0, i_greater_zero && j_less_width ? gradient_norme[i - 1][j + 1]: 0))
+              if(gradient_norme[i][j] < MAX(i_less_length && j_greater_zero? gradient_norme[i + 1][j - 1]: FLT_MAX, i_greater_zero && j_less_width ? gradient_norme[i - 1][j + 1]: FLT_MAX))
                   suppression[i][j] = 0;
               break;
           }
