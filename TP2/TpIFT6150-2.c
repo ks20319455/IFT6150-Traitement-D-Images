@@ -53,14 +53,22 @@ float Gy[3][3] = { { 0, 0, 0},
 // Function to apply Sobel operator
 void apply_sobel(float** image, float** gradient_x, float** gradient_y, int length, int width) {
     int i, j, x, y;
-    for (i = 1; i < length - 1; i++) {
-        for (j = 1; j < width - 1; j++) {
+    for (i = 0; i < length; i++) {
+        for (j = 0; j < width ; j++) {
             float sum_x = 0.0;
             float sum_y = 0.0;
             for (x = -1; x <= 1; x++) {
                 for (y = -1; y <= 1; y++) {
-                    sum_x += image[i + x][j + y] * Gx[x + 1][y + 1];
-                    sum_y += image[i + x][j + y] * Gy[x + 1][y + 1];
+                    int image_x=i + x;
+                    int image_y=j + y;
+                    if(image_x<0) image_x=0;
+                    if(image_x>=length) image_x=length-1;
+                    if(image_y<0) image_y=0;
+                    if(image_y>=length) image_y=width-1;
+                    int imageVal=image[image_x][image_y];
+                    //if(image_x>=0 && image_x<length && image_y>=0 && image_y<width) imageVal=image[image_x][image_y];
+                    sum_x += imageVal * Gx[x + 1][y + 1];
+                    sum_y += imageVal * Gy[x + 1][y + 1];
                 }
             }
             gradient_x[i][j] = sum_x;
@@ -160,30 +168,32 @@ int main(int argc,char** argv)
   Recal(gradient_norme, length, width);
   SaveImagePgm(NAME_IMG_GRADIENT, gradient_norme, length, width);
 
-  int i_ok, j_ok;
+  int i_greater_zero, i_less_length, j_greater_zero,j_less_width;
   for(i=0; i < length; i++)
       for(j=0; j < width; j++) {
           suppression[i][j] = gradient_norme[i][j];
 
-          i_ok = !(i - 1 < 0 || i + 1 > length - 1);
-          j_ok = !(j - 1 < 0 || j + 1 > width - 1);
+          i_greater_zero = i - 1 >= 0;
+          i_less_length = i + 1 < length ;
+          j_greater_zero = j - 1 >= 0;
+          j_less_width = j + 1 < width ;
           
           int angle = (int) gradient_angle[i][j];
           switch(angle) {
           case 0:
-              if(i_ok && gradient_norme[i][j] < MAX(gradient_norme[i - 1][j], gradient_norme[i + 1][j]))
+              if(gradient_norme[i][j] < MAX(i_greater_zero ? gradient_norme[i - 1][j] : 0, i_less_length ? gradient_norme[i + 1][j] : 0))
                   suppression[i][j] = 0;
               break;
           case 135:
-              if(i_ok && j_ok && gradient_norme[i][j] < MAX(gradient_norme[i - 1][j - 1], gradient_norme[i + 1][j + 1]))
+              if(gradient_norme[i][j] < MAX(i_greater_zero && j_greater_zero ? gradient_norme[i - 1][j - 1] : 0, i_less_length && j_less_width ? gradient_norme[i + 1][j + 1]:0))
                   suppression[i][j] = 0;
               break;
           case 90:
-              if(j_ok && gradient_norme[i][j] < MAX(gradient_norme[i][j - 1], gradient_norme[i][j + 1]))
+              if(gradient_norme[i][j] < MAX(j_greater_zero ? gradient_norme[i][j - 1]: 0, j_less_width ? gradient_norme[i][j + 1]: 0))
                   suppression[i][j] = 0;
               break;
           case 45:
-              if(i_ok && j_ok && gradient_norme[i][j] < MAX(gradient_norme[i + 1][j - 1], gradient_norme[i - 1][j + 1]))
+              if(gradient_norme[i][j] < MAX(i_less_length && j_greater_zero? gradient_norme[i + 1][j - 1]: 0, i_greater_zero && j_less_width ? gradient_norme[i - 1][j + 1]: 0))
                   suppression[i][j] = 0;
               break;
           }
@@ -249,10 +259,10 @@ void follow(int i, int j, int tau_l, float** suppression, float** gradient_angle
     contour[i][j] = 255.0;
     visites[i][j] = 1;
 
-    int angle = gradient_angle[i][j];
+    int angle = (int) gradient_angle[i][j];
     
-    switch((angle + 2) % 4) {
-    case 0:
+    switch(angle) {
+    case 90:
         if(i - 1 > 0 && suppression[i - 1][j] > tau_l) {
             FOLLOW(i - 1, j);
         }
@@ -262,7 +272,7 @@ void follow(int i, int j, int tau_l, float** suppression, float** gradient_angle
         }
         break;
         
-    case 1:
+    case 135:
         if(i + 1 < length && j - 1 >= 0 && suppression[i + 1][j - 1] > tau_l) {
             FOLLOW(i + 1, j - 1);
         }
@@ -272,7 +282,7 @@ void follow(int i, int j, int tau_l, float** suppression, float** gradient_angle
         }
         break;
         
-    case 2:
+    case 0:
         if(j - 1 >= 0 && suppression[i][j - 1] > tau_l) {
             FOLLOW(i, j - 1);
         }
@@ -282,7 +292,7 @@ void follow(int i, int j, int tau_l, float** suppression, float** gradient_angle
         }
         break;
 
-    case 3:
+    case 45:
         if(i - 1 >= 0 && j - 1 >= 0 && suppression[i - 1][j - 1] > tau_l) {
             FOLLOW(i - 1, j - 1);
         }
