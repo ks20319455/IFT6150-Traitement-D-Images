@@ -89,6 +89,8 @@ int main(int argc, char** argv) {
     // Conversion de l'image dégradée dans le domaine spatial
     IFFTDD(degraded_real, degraded_imag, img_length, img_width);
     IFFTDD(input_real, input_imag, img_length, img_width);
+
+    apply_clamp(degraded_real,img_length,img_width);
     
     SaveImagePgm(OUTPUT_IMAGE_NAME_DEGRADED_NOISELESS, degraded_real, img_length, img_width);
     
@@ -107,7 +109,6 @@ int main(int argc, char** argv) {
     
     // Ajout de bruit gaussien à l'image floue : g = g + bruit =  image + flou + bruit
     add_gaussian_noise(degraded_real, img_length, img_width, noise_variance);
-
     SaveImagePgm(OUTPUT_IMAGE_NAME_DEGRADED_NOISY, degraded_real, img_length, img_width);
 
     /*******************************************************/
