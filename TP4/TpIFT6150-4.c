@@ -159,7 +159,7 @@ void radon_to_TF2D(float** tf_r, float** tf_i, float** radon_r, float** radon_i)
 /*------------------------------------------------*/
 /* PROGRAMME PRINCIPAL ---------------------------*/
 /*------------------------------------------------*/
-int main(char argc, char** argv)
+int main(int argc, char** argv)
 {
     int i, j, k;
     float rotat;
