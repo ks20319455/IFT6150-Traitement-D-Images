@@ -40,120 +40,129 @@
 /*------------------------------------------------*/
 /* FONCTIONS -------------------------------------*/
 /*------------------------------------------------*/
+// Fonction utilitaire pour gérer les indices circulaires
 
-float matrix_val(float** m, int j, int i, int length, int width) {
+#define IMAGE_WIDTH WIDTH
+#define IMAGE_HEIGHT LENGTH
 
-    if(i < 0 || i >= length)
-        i = (i + length) % length;
-    
-    if(j < 0 || j >= width)
-        j = (j + width) % width;
-
-    return m[i][j];
+// Fonction utilitaire pour gérer les indices circulaires dans une matrice
+float get_matrix_value(float** matrix, int row, int col, int num_rows, int num_cols) {
+    if (col < 0 || col >= num_cols)
+        col = (col + num_cols) % num_cols;
+    if (row < 0 || row >= num_rows)
+        row = (row + num_rows) % num_rows;
+    return matrix[row][col];
 }
 
-void matrix_rotation_ppv(float** src, float** dest, float angle, int l, int w) {
-    int x1,y1,x2,y2;
-    float xp,yp;
+// Calcul du rayon (distance à l'origine) à partir de (x, y)
+float calculate_radius(int x, int y) {
+    return fmod(round(sqrt(CARRE(x) + CARRE(y)) + IMAGE_WIDTH / 2), IMAGE_WIDTH);
+}
 
-    for(y2=0; y2<l; y2++) {
-        for(x2=0; x2<w; x2++) {
+// Fonction pour calculer l'angle entre trois points dans un plan 2D
+float calculate_angle_deg(int A_x, int A_y, int B_x, int B_y, int C_x, int C_y) {
+    float numerator, denominator, angle;
+    numerator = (A_y - B_y) * (C_y - B_y) + (A_x - B_x) * (C_x - B_x);
+    denominator = sqrt(CARRE(A_y - B_y) + CARRE(A_x - B_x)) * sqrt(CARRE(C_y - B_y) + CARRE(C_x - B_x));
 
-            xp =  (x2 - w/2) * cos(-angle) + (y2 - l/2) * sin(-angle) + w/2;
-            yp = -(x2 - w/2) * sin(-angle) + (y2 - l/2) * cos(-angle) + l/2;
+    if (denominator != 0.0)
+        angle = acos(numerator / denominator);
+    else
+        angle = 0.0;
 
-            x1 = floor(xp);
-            y1 = floor(yp);
+    if (A_x > C_x)
+        angle = 2 * PI - angle;
+    angle=(angle * (180.0 / PI));
+    return angle;  // Conversion en degrés
+}
 
-            dest[y2][x2] = matrix_val(src, x1, y1, l, w);
+// Interpolation bilinéaire générique entre 4 valeurs
+float bilinear_interpolation(float** matrix, int lower_x, int lower_y, float rotated_x, float rotated_y, int num_rows, int num_cols) {
+    float top_left = get_matrix_value(matrix, lower_y, lower_x, num_rows, num_cols);
+    float top_right = get_matrix_value(matrix, lower_y, lower_x + 1, num_rows, num_cols);
+    float bottom_left = get_matrix_value(matrix, lower_y + 1, lower_x, num_rows, num_cols);
+    float bottom_right = get_matrix_value(matrix, lower_y + 1, lower_x + 1, num_rows, num_cols);
+
+    // Interpolation sur X
+    float top = top_left + (rotated_x - lower_x) * (top_right - top_left);
+    float bottom = bottom_left + (rotated_x - lower_x) * (bottom_right - bottom_left);
+
+    // Interpolation sur Y
+    return top + (rotated_y - lower_y) * (bottom - top);
+}
+
+// Fonction de rotation avec interpolation bilinéaire
+void rotate_matrix_bilinear(float** input_matrix, float** output_matrix, float angle, int num_rows, int num_cols) {
+    int row, col;
+    float rotated_x, rotated_y;
+    int lower_x, lower_y;
+
+    for (row = 0; row < num_rows; row++) {
+        for (col = 0; col < num_cols; col++) {
+            // Rotation avec translation du centre
+            rotated_x = (col - num_cols / 2) * cos(-angle) + (row - num_rows / 2) * sin(-angle) + num_cols / 2;
+            rotated_y = -(col - num_cols / 2) * sin(-angle) + (row - num_rows / 2) * cos(-angle) + num_rows / 2;
+
+            // Indices arrondis pour l'interpolation
+            lower_x = (int)floor(rotated_x);
+            lower_y = (int)floor(rotated_y);
+
+            // Appel à la fonction d'interpolation bilinéaire
+            output_matrix[row][col] = bilinear_interpolation(input_matrix, lower_x, lower_y, rotated_x, rotated_y, num_rows, num_cols);
         }
     }
 }
 
-void matrix_rotation_bilin(float** src, float** dest, float angle, int l, int w) {
-    int x1,y1,x2,y2;
-    float xp,yp,f1,f2,f3;
+// Calcul du rayon pour un point (x, y)
+float compute_radius(int x, int y) {
+    return fmod(round(sqrt(CARRE(x) + CARRE(y)) + IMAGE_WIDTH / 2), IMAGE_WIDTH);
+}
 
-    for(y2=0; y2<l; y2++) {
-        for(x2=0; x2<w; x2++) {
+// Calcul de l'angle entre (x, y) et l'axe de projection
+float compute_angle(int x, int y) {
+    return fmod(180 - round(calculate_angle_deg(x, y, 0, 0, IMAGE_WIDTH, 0)), 180) / (180.0 / NB_PROJECTIONS);
+}
 
-            xp =  (x2 - w/2) * cos(-angle) + (y2 - l/2) * sin(-angle) + w/2;
-            yp = -(x2 - w/2) * sin(-angle) + (y2 - l/2) * cos(-angle) + l/2;
 
-            x1 = floor(xp);
-            y1 = floor(yp);
-                        
-            f1 = matrix_val(src, x1, y1, l, w) + (xp - x1)*(matrix_val(src, x1 + 1, y1, l, w) - matrix_val(src, x1, y1, l, w));
-            f2 = matrix_val(src, x1, y1 + 1, l, w)
-                + (xp - x1) * (matrix_val(src, x1 + 1, y1 + 1, l, w) - matrix_val(src, x1, y1 + 1, l, w));
+// Fonction de conversion de l'image Radon vers l'espace Fourier 2D
+void radon_to_fourier2D(float** fourier_real, float** fourier_imag, float** radon_real, float** radon_imag) {
+    int i, j, angle_idx, radius_idx;
+    float angle, radius, interpolated_value1, interpolated_value2;
 
-            dest[y2][x2] = f1 + (yp - y1) * (f2 - f1);
+    for (i = 0; i < IMAGE_HEIGHT / 2; i++) {
+        for (j = 0; j < IMAGE_WIDTH; j++) {
+            int x = j - IMAGE_WIDTH / 2;
+            int y = i - IMAGE_HEIGHT / 2;
+
+            radius = compute_radius(x, y);
+            angle = compute_angle(x, y);
+
+            // Indices arrondis pour l'interpolation
+            angle_idx = (int)floor(angle);
+            radius_idx = (int)floor(radius);
+
+            // Vérification des limites des indices
+            angle_idx = fmax(0, fmin(angle_idx, NB_PROJECTIONS - 1));
+            radius_idx = fmax(0, fmin(radius_idx, WIDTH_RADON - 1));
+
+            // Interpolation bilinéaire pour la composante réelle de Fourier
+            interpolated_value1 = bilinear_interpolation(radon_real, radius_idx, angle_idx, radius, angle, NB_PROJECTIONS, WIDTH_RADON);
+            interpolated_value2 = bilinear_interpolation(radon_real, radius_idx, (angle_idx + 1) % NB_PROJECTIONS, radius, angle, NB_PROJECTIONS, WIDTH_RADON);
+            fourier_real[i][j] = interpolated_value1 + (angle - angle_idx) * (interpolated_value2 - interpolated_value1);
+
+            // Calculer la composante réelle symétrique pour l'image inversée
+            int inverse_j = (IMAGE_WIDTH - j) % IMAGE_WIDTH;
+            fourier_real[IMAGE_HEIGHT - 1 - i][inverse_j] = interpolated_value1 + (angle - angle_idx) * (interpolated_value2 - interpolated_value1);
+
+            // Interpolation bilinéaire pour la composante imaginaire de Fourier
+            interpolated_value1 = bilinear_interpolation(radon_imag, radius_idx, angle_idx, radius, angle, NB_PROJECTIONS, WIDTH_RADON);
+            interpolated_value2 = bilinear_interpolation(radon_imag, radius_idx, (angle_idx + 1) % NB_PROJECTIONS, radius, angle, NB_PROJECTIONS, WIDTH_RADON);
+            fourier_imag[i][j] = -(interpolated_value1 + (radius - radius_idx) * (interpolated_value2 - interpolated_value1));
+
+            // Calculer la composante imaginaire symétrique pour l'image inversée
+            fourier_imag[IMAGE_HEIGHT - 1 - i][inverse_j] = interpolated_value1 + (radius - radius_idx) * (interpolated_value2 - interpolated_value1);
         }
     }
-}
-
-
-/*----------------------------------------------------*/
-/* angle en degre entre BA et BC                      */
-/* A(ptar,ptac) - B(ptbr,ptbc) - C(ptcr,ptcc)         */
-/*----------------------------------------------------*/
-float AngleDeg(int ptar,int ptac,int ptbr,int ptbc,int ptcr,int ptcc)
-{
-    float num,den;
-    float angle;
-
-    //initialisation
-    num=den=angle=0.0;
-
-    //calcul potentiel
-    num+=(float)(ptac-ptbc)*(ptcc-ptbc);
-    num+=(float)(ptar-ptbr)*(ptcr-ptbr);
-    den+=(float)sqrt(CARRE(ptac-ptbc)+CARRE(ptar-ptbr));
-    den*=(float)sqrt(CARRE(ptcc-ptbc)+CARRE(ptcr-ptbr));
-
-    if (den!=0.0) angle=acos(num/den);
-    else angle=0.0;
-
-    if (ptar>ptcr) angle=2*PI-angle;
-
-    return (angle*(180.0/PI));
-}
-
-void radon_to_TF2D(float** tf_r, float** tf_i, float** radon_r, float** radon_i) {
-    int i, j, x, y, angle1, rayon1;
-
-    float angle, rayon, f1, f2;
-
-    for(i=0; i<LENGTH/2; i++)
-        for(j=0; j<WIDTH; j++) {
-
-            x = j - WIDTH/2;
-            y = i - WIDTH/2;
-
-            rayon = fmod(round(sqrt(CARRE(x) + CARRE(y)) + WIDTH/2), WIDTH);
-
-            angle = fmod(180 - round(AngleDeg(x, y, 0, 0, WIDTH, 0)), 180) / (180.0 / NB_PROJECTIONS);
-            
-            // Interpolation bilinéaire
-            angle1 = floor(angle); // x1
-            rayon1 = floor(rayon); // y1
-
-            // Calcul de tf_r
-            f1 = radon_r[angle1][rayon1] + (angle - angle1)*(radon_r[(angle1 + 1) % NB_PROJECTIONS][rayon1] - radon_r[angle1][rayon1]);
-            f2 = radon_r[angle1][(rayon1 + 1) % WIDTH_RADON]
-                + (angle - angle1) * (radon_r[(angle1 + 1) % NB_PROJECTIONS][(rayon1 + 1) % WIDTH_RADON] - radon_r[angle1][(rayon1 + 1) % WIDTH_RADON]);
-            
-            tf_r[i][j] = f1 + (rayon - rayon1) * (f2 - f1);
-            tf_r[LENGTH - 1 - i][(WIDTH - j) % WIDTH] = f1 + (rayon - rayon1) * (f2 - f1);
-            
-            // Calcul de tf_i
-            f1 = radon_i[angle1][rayon1] + (angle - angle1)*(radon_i[(angle1 + 1) % NB_PROJECTIONS][rayon1] - radon_i[angle1][rayon1]);
-            f2 = radon_i[angle1][(rayon1 + 1) % WIDTH_RADON]
-                + (angle - angle1) * (radon_i[(angle1 + 1) % NB_PROJECTIONS][(rayon1 + 1) % WIDTH_RADON] - radon_i[angle1][(rayon1 + 1) % WIDTH_RADON]);
-            
-            tf_i[i][j] = -(f1 + (rayon - rayon1) * (f2 - f1));
-            tf_i[LENGTH - 1 - i][(WIDTH - j) % WIDTH] = f1 + (rayon - rayon1) * (f2 - f1);
-        }
 }
 
 /*------------------------------------------------*/
@@ -162,7 +171,6 @@ void radon_to_TF2D(float** tf_r, float** tf_i, float** radon_r, float** radon_i)
 int main(int argc, char** argv)
 {
     int i, j, k;
-    float rotat;
 
     float **MatriceImgG;
     float **MatriceRadon;
@@ -220,63 +228,77 @@ int main(int argc, char** argv)
 
     //On charge l'image dans MatriceImgG
     //----------------------------------
+    // Chargement et sauvegarde de l'image d'entrée
     LoadImagePgm(NAME_IMG_IN, MatriceImgG, LENGTH, WIDTH);
+    SaveImagePgm(NAME_IMG_OUT0, MatriceImgG, LENGTH, WIDTH);
 
-    for(k=0; k<NB_PROJECTIONS; k++) {
+    // Préparation des matrices de Radon et des vecteurs pour les FFT
+    for (int k = 0; k < NB_PROJECTIONS; k++) {
+        // Calcul de l'angle de rotation pour la projection Radon
+        float angle = (k * 180.0 / NB_PROJECTIONS) / 360.0 * 2 * PI;
+
+        // Appliquer la rotation bilinéaire et accumuler les projections
+        rotate_matrix_bilinear(MatriceImgG, Mat1, angle, LENGTH, WIDTH);
         
-        matrix_rotation_bilin(MatriceImgG, Mat1, (k * 180.0 / NB_PROJECTIONS) / 360.0 * 2 * PI, LENGTH, WIDTH);
-        
-        for(i=0; i<LENGTH; i++)
-            for(j=0; j<WIDTH; j++) {
+        // Accumuler les projections dans MatriceRadon
+        for (int i = 0; i < LENGTH; i++) {
+            for (int j = 0; j < WIDTH; j++) {
                 MatriceRadon[k][j] += Mat1[i][j];
-            }     
-        
-        for(i=0; i<WIDTH; i++) {
+            }
+        }
+
+        // Sauvegarder l'image de la projection à 45° (si nécessaire)
+        if (k == 45) {
+            SaveImagePgm(NAME_IMG_OUT1, Mat1, LENGTH, WIDTH);
+        }
+
+        // Préparer les vecteurs VctR et VctI pour la FFT
+        for (int i = 0; i < WIDTH; i++) {
             VctR[i] = MatriceRadon[k][i];
             VctI[i] = 0.0;
         }
 
+        // Appliquer la FFT 1D sur les projections
         ReMkeVct(VctR, WIDTH);
         ReMkeVct(VctI, WIDTH);
-        
         FFT1D(VctR, VctI, WIDTH);
         ReMkeVct(VctR, WIDTH);
         ReMkeVct(VctI, WIDTH);
- 
-        for(j=0; j<WIDTH; j++) {
+
+        // Sauvegarder les résultats de la FFT dans les matrices RadonRFFT et RadonIFFT
+        for (int j = 0; j < WIDTH; j++) {
             MatriceRadonRFFT[k][j] = VctR[j];
             MatriceRadonIFFT[k][j] = VctI[j];
         }
     }
 
-    /*----------------------------------------------------------*/
-    /*Sauvegarde des matrices sous forme d'image pgms */
+    // Recalage et sauvegarde de la matrice Radon
+    Recal(MatriceRadon, LENGTH_RADON, WIDTH_RADON);
+    SaveImagePgm(NAME_IMG_OUT2, MatriceRadon, LENGTH_RADON, WIDTH_RADON);
 
+    // Calcul et sauvegarde de la matrice Radon après FFT et IFFT
     Mod(MatriceRadonMFFT, MatriceRadonRFFT, MatriceRadonIFFT, LENGTH_RADON, WIDTH_RADON);
-    
     Recal(MatriceRadonMFFT, LENGTH_RADON, WIDTH_RADON);
-    Mult(MatriceRadonMFFT, 60, LENGTH_RADON, WIDTH_RADON);
-    
-    radon_to_TF2D(MatRFFT, MatIFFT, MatriceRadonRFFT, MatriceRadonIFFT);
-    
-    Mod(MatMFFT, MatRFFT, MatIFFT, LENGTH, WIDTH);
+    Mult(MatriceRadonMFFT, 100, LENGTH_RADON, WIDTH_RADON);
+    SaveImagePgm(NAME_IMG_OUT3, MatriceRadonMFFT, LENGTH_RADON, WIDTH_RADON);
 
+    // Transformation Radon vers Fourier 2D
+    radon_to_fourier2D(MatRFFT, MatIFFT, MatriceRadonRFFT, MatriceRadonIFFT);
+    Mod(MatMFFT, MatRFFT, MatIFFT, LENGTH, WIDTH);
+    SaveImagePgm(NAME_IMG_OUT4, MatMFFT, LENGTH, WIDTH);
+
+    // Inverse FFT et sauvegarde de l'image
     ReMkeImg(MatRFFT, LENGTH, WIDTH);
     ReMkeImg(MatIFFT, LENGTH, WIDTH);
-    
     IFFTDD(MatRFFT, MatIFFT, LENGTH, WIDTH);
 
+    // Recalage et normalisation finale
     ReMkeImg(MatRFFT, LENGTH, WIDTH);
-
     Recal(MatRFFT, LENGTH, WIDTH);
-    
     RecalMoy(MatRFFT, MatriceImgG, LENGTH, WIDTH);
-    
-#if NB_PROJECTIONS == 90
-      SaveImagePgm(NAME_IMG_OUT4, MatRFFT, LENGTH, WIDTH);
-#else
-      SaveImagePgm(NAME_IMG_OUT5, MatRFFT, LENGTH, WIDTH);
-#endif
+
+    // Sauvegarde finale de l'image
+    SaveImagePgm(NAME_IMG_OUT5, MatRFFT, LENGTH, WIDTH);
 
     /*Liberation memoire pour les matrices */
     free_fmatrix_2d(MatriceImgG);
@@ -293,9 +315,6 @@ int main(int argc, char** argv)
     /*Liberation memoire pour les vecteurs */
     free(VctR);
     free(VctI);
-
-    /*Commande systeme: visualisation de Imgout.pgm */
-    // system("display ImgOut0.pgm&");
 
     /*retour sans probleme */
     printf("\n C'est fini ... \n\n\n");
