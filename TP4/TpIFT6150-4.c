@@ -31,7 +31,7 @@
 
 #define LENGTH 128
 #define WIDTH  128
-// Changer ce nombre à 45 pour avoir 45 projections
+
 #define NB_PROJECTIONS 180
 
 #define LENGTH_RADON NB_PROJECTIONS
