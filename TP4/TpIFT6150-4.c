@@ -131,8 +131,8 @@ void radon_to_fourier2D(float** fourier_real, float** fourier_imag, float** rado
 
     for (i = 0; i < IMAGE_HEIGHT / 2; i++) {
         for (j = 0; j < IMAGE_WIDTH; j++) {
-            int x = j - IMAGE_WIDTH / 2;
             int y = i - IMAGE_HEIGHT / 2;
+            int x = j - IMAGE_WIDTH / 2;
 
             radius = compute_radius(x, y);
             angle = compute_angle(x, y);
