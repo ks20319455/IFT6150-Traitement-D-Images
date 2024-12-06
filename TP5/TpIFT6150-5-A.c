@@ -47,17 +47,18 @@ int main(int argc, char *argv[])
     scanf("%d",&seuilMV);
  
     /* Ouvrir l'image d'entree */
-    y = LoadImagePgm(argv[argc - 1], &length, &width);
+    char* pathImage = argv[argc - 1];
+    y = LoadImagePgm(pathImage, &length, &width);
     x = fmatrix_allocate_2d(length, width);
     
     /* Seuil */
     for(i=0; i<length; i++)
         for(j=0; j<width; j++) {
-            x[i][j] = (y[i][j] > seuilMV) * 255;
+            int depasseSeuilMV= y[i][j] > seuilMV;
+            x[i][j] = (depasseSeuilMV) * GREY_LEVEL;
         }
 
     /* Sauvegarde du champ d'etiquettes et de l'histogramme de l'image d'entree */
-    
     SaveImagePgm(NAME_IMG_OUT1, x, length, width);
 
     float* histogramme = malloc(sizeof(float) * GREY_LEVEL);
@@ -67,6 +68,7 @@ int main(int argc, char *argv[])
     /* Liberer la memoire des images */
     free_fmatrix_2d(x);
     free_fmatrix_2d(y);
+
     /*Commande systeme: visualisation de Ingout.pgm*/
     system("display A-segmentation.pgm&"); 
     system("display A-histogramme.pgm&");

@@ -23,14 +23,22 @@
 /*------------------------------------------------*/
 #define NAME_IMG_OUT "B-segmentation"
 
+// fonction pour êchanger deux variables
+void swap(float* a, float* b) {
+    float temp = *a;  
+    *a = *b;        
+    *b = temp;      
+}
+
 /*------------------------------------------------*/
 /* PROGRAMME PRINCIPAL   -------------------------*/                     
 /*------------------------------------------------*/
+
 int main(int argc, char *argv[])
 {
     int i,j;
     int seuilMV;
-    float mean0=0,mean1=255,var0,var1; /* parametres statistiques des deux classes : a estimer  */
+    float mean0,mean1,var0,var1; /* parametres statistiques des deux classes : a estimer  */
     int length,width;
 
     float** y;  /* image a segmenter */
@@ -43,91 +51,83 @@ int main(int argc, char *argv[])
 	}
 	
     /* Ouvrir l'image d'entree */
-    y = LoadImagePgm(argv[argc - 1], &length, &width);
+    char* pathImage = argv[argc - 1];
+    y = LoadImagePgm(pathImage, &length, &width);
     x = fmatrix_allocate_2d(length, width);
 
 	/* Lancer l'algorithme des K-Moyennes */
-
-    // Centres initialisés au hasard
-    float next_mean0 = -1, next_mean1 = -1;
-
     float* histogramme = malloc(sizeof(float) * GREY_LEVEL);
     compute_histo(y, length, width, histogramme);
 
-//     // Calculate the average intensity of the first half of the histogram
-// mean0 = 0;
-// for(i = 0; i < GREY_LEVEL / 2; i++) {
-//     mean0 += i * histogramme[i];
-// }
-// mean0 /= total0; // Divide by total number of pixels in the lower half
+    srand(14);
+    // la probabilité que mean0 et mean1 soit pareil est presque zero
+    mean0 = randomize() * GREY_LEVEL;
+    mean1=  randomize() * GREY_LEVEL;
 
-// // Calculate the average intensity of the second half of the histogram
-// mean1 = 0;
-// for(i = GREY_LEVEL / 2; i < GREY_LEVEL; i++) {
-//     mean1 += i * histogramme[i];
-// }
-// mean1 /= total1; // Divide by total number of pixels in the upper half
+     // On échange le mean0  et mean1 pour assure que mean0 reste le centre de la classe des pixels noirs
+    if(mean0 > mean1)
+        swap(&mean0,&mean1);
 
-
-    int convergence = 0, debut_classe_1, iteration = 0;
-    float somme0, somme1, total0, total1, new_mean0, new_mean1;
+    float sum0, sum1, next_mean0, next_mean1, total0, total1;
+    int  seuil_classe1, it = 0, isConverged = 0;
     
-    while(!convergence) {
-
-        somme0 = 0;
-        somme1 = 0;
+    while(!isConverged) {
         total0 = 0;
         total1 = 0;
+        sum0 = 0;
+        sum1 = 0;
         
-        debut_classe_1 = (mean1 - mean0) / 2.0 + mean0;
-
-        // Classe 0
-        for(i=0; i<debut_classe_1; i++) {
-            somme0 += i*histogramme[i];
+        seuil_classe1 = (mean1 - mean0) / 2.0 + mean0;
+        
+        for(i=0; i<seuil_classe1; i++) {
+            sum0 += i*histogramme[i];
             total0 += histogramme[i];
         }
 
-        // Classe 1
-        for(i=debut_classe_1; i<=GREY_LEVEL; i++) {
-            somme1 += i*histogramme[i];
+       
+        for(i=seuil_classe1; i<=GREY_LEVEL; i++) {
+            sum1 += i*histogramme[i];
             total1 += histogramme[i];
         }
 
-        new_mean0 = somme0/total0;
-        new_mean1 = somme1/total1;
-        printf("%d : %f %f\n", iteration, somme0, somme1);
-        printf("%d : %f %f\n", iteration, new_mean0, new_mean1);
-        iteration++;
+        next_mean0 = sum0/total0;
+        next_mean1 = sum1/total1;
+        it++;
         
-        convergence = new_mean0 == mean0 && new_mean1 == mean1;
+        isConverged = next_mean0 == mean0 && next_mean1 == mean1;
 
-        mean0 = new_mean0;
-        mean1 = new_mean1;
+        printf("%d : %.1f %.1f   Vs   %.1f  %.1f\n", it, mean0, mean1, next_mean0, next_mean1);
+
+        mean0 = next_mean0;
+        mean1 = next_mean1;
     }
 
-    total0 = total1 = 0;
-
-    // Classe 0
-    for(i=0; i<debut_classe_1; i++) {
-        somme0 += histogramme[i] * SQUARE(i - mean0);
+    total0 = 0;
+    total1 = 0;
+    sum0=0;
+    sum1=0;
+   
+    for(i=0; i<seuil_classe1; i++) {
         total0 += histogramme[i];
+        sum0 += histogramme[i] * SQUARE(i - mean0);
     }
-    var0 = somme0 / total0;
-
-    // Classe 1
-    for(i=debut_classe_1; i<=GREY_LEVEL; i++) {
-        somme1 += histogramme[i] * SQUARE(i - mean1);
+  
+    for(i=seuil_classe1; i<=GREY_LEVEL; i++) {
         total1 += histogramme[i];
+        sum1 += histogramme[i] * SQUARE(i - mean1);
     }
-    var1 = somme1 / total1;
+
+    var0 = sum0 / total0;
+    var1 = sum1 / total1;
+
+    printf("(%.1f  %.1f)    (%.1f %.1f)\n", mean0, mean1, var0, var1);
     
     for(i=0; i<length; i++)
         for(j=0; j<width; j++) {
-            x[i][j] = (y[i][j] > debut_classe_1) * 255;
+            int depasseClasse1 = y[i][j] >= seuil_classe1;
+            x[i][j] = (depasseClasse1) * GREY_LEVEL;
         }
 
-    printf("%f %f\n", var0, var1);
-    
     /* Sauvegarde du champ d'etiquettes */
     SaveImagePgm(NAME_IMG_OUT, x, length, width);
     

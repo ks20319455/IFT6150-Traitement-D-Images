@@ -104,6 +104,7 @@ int main(int argc, char *argv[])
     }
 
     total0 = total1 = 0;
+    somme0= somme1 = 0;
     
     // Classe 0
     for(i=0; i<debut_classe_1; i++) {
@@ -121,7 +122,7 @@ int main(int argc, char *argv[])
     
     for(i=0; i<length; i++)
         for(j=0; j<width; j++) {
-            x[i][j] = (y[i][j] > debut_classe_1);
+            x[i][j] = (y[i][j] >= debut_classe_1);
         }
 
 	/* Lancer l'algorithme de Recuit Simulé */
@@ -156,9 +157,6 @@ int main(int argc, char *argv[])
 
                 for(k=fmax(0, i-1); k<=fmin(i+1, length - 1); k++)
                     for(l=fmax(0, j-1); l<=fmin(j+1, width - 1); l++) {
-                        if(k == i && j == l)
-                            continue;
-                        
                         voisins0 += x[k][l] == 0;
                         voisins1 += x[k][l] == 1;
                     }

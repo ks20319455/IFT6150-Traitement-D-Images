@@ -23,6 +23,14 @@
 /*------------------------------------------------*/
 /* PROGRAMME PRINCIPAL   -------------------------*/                     
 /*------------------------------------------------*/
+// fonction pour êchanger deux variables
+void swap(float* a, float* b) {
+    float temp = *a;  
+    *a = *b;        
+    *b = temp;      
+}
+
+
 void compute_histo_denorm(float** mat,int lgth,int wdth,float* hist)
 {
  int i,j;
@@ -63,7 +71,7 @@ int main(int argc, char *argv[])
 
     float* histogramme = malloc(sizeof(float) * GREY_LEVEL);
     compute_histo_denorm(y, length, width, histogramme);
-    
+
     srand(time(NULL));
     mean0 = randomize() * 255;
 
@@ -112,7 +120,10 @@ int main(int argc, char *argv[])
         mean1 = new_mean1;
     }
 
-    total0 = total1 = 0;
+    total0 = 0;
+    total1 = 0;
+    somme0= 0;
+    somme1 = 0;
     
     // Classe 0
     for(i=0; i<debut_classe_1; i++) {
@@ -120,17 +131,19 @@ int main(int argc, char *argv[])
         total0 += histogramme[i];
     }
     var0 = somme0 / total0;
-
+ 
     // Classe 1
     for(i=debut_classe_1; i<=GREY_LEVEL; i++) {
         somme1 += histogramme[i] * SQUARE(i - mean1);
         total1 += histogramme[i];
     }
     var1 = somme1 / total1;
+
+    printf("(%f  %f)    (%f %f)\n", mean0, mean1, var0, var1);
     
     for(i=0; i<length; i++)
         for(j=0; j<width; j++) {
-            x[i][j] = (y[i][j] > debut_classe_1);
+            x[i][j] = (y[i][j] >= debut_classe_1);
         }
 
 	/* Lancer l'algorithme ICM */
@@ -141,8 +154,8 @@ int main(int argc, char *argv[])
     // Pré-calcul des vraissemblances
     for(i=0; i<length; i++)
         for(j=0; j<width; j++) {
-            vraissemblance0[i][j] = SQUARE(y[i][j]-mean0)/(2*var0) + log(sqrt(2*PI*var0));
-            vraissemblance1[i][j] = SQUARE(y[i][j]-mean1)/(2*var1) + log(sqrt(2*PI*var1));
+            vraissemblance0[i][j] = SQUARE(y[i][j]-mean0)/(2*var0) + 0.5*log(2*PI*var0);
+            vraissemblance1[i][j] = SQUARE(y[i][j]-mean1)/(2*var1) + 0.5*log(2*PI*var1);
         }
     
     int changes = 1, iteration = 1;
@@ -161,12 +174,12 @@ int main(int argc, char *argv[])
 
                 for(k=fmax(0, i-1); k<=fmin(i+1, length - 1); k++)
                     for(l=fmax(0, j-1); l<=fmin(j+1, width - 1); l++) {
-                        if(k == i && j == l)
-                            continue;
+                        // if(k == i && j == l)
+                        //     continue;
                         
                         voisins0 += x[k][l] == 0;
                         voisins1 += x[k][l] == 1;
-                    }
+                }
 
                 u0 = vraissemblance0[i][j] + alpha * voisins1;
                 u1 = vraissemblance1[i][j] + alpha * voisins0;
